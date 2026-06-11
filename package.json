@@ -1,0 +1,27 @@
+{
+  "name": "obsidian-wechatreading-highlights-sync",
+  "version": "0.1.2",
+  "description": "Sync WeChat Reading shelf, highlights, notes, and reading stats to Markdown notes. 将微信读书书架、划线、想法和阅读统计同步为 Markdown 笔记.",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "test": "vitest run"
+  },
+  "keywords": [
+    "obsidian",
+    "wechatreading",
+    "wechat-reading",
+    "highlights"
+  ],
+  "author": "EricZheng",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.14.11",
+    "esbuild": "^0.25.12",
+    "obsidian": "^1.6.7",
+    "tslib": "^2.6.3",
+    "typescript": "^5.5.3",
+    "vitest": "^3.2.6"
+  }
+}
