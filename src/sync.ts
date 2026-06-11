@@ -100,7 +100,7 @@ export class WeChatReadingSyncService {
         } catch (error) {
           failedBooks += 1;
           this.log("error", `同步《${book.title}》失败：${error instanceof Error ? error.message : String(error)}`);
-          console.error("[Wechat Reading] 单本书同步失败", book, error);
+          console.error("[微信读书笔记同步] 单本书同步失败", book, error);
         }
       }
 
@@ -178,7 +178,7 @@ export class WeChatReadingSyncService {
         skippedBooks: 0,
         failedBooks: 0
       });
-      console.error("[Wechat Reading] 同步失败", error);
+      console.error("[微信读书笔记同步] 同步失败", error);
       await this.writeLogFile(settings);
       this.updateProgress(progressNotice, `微信读书：同步失败，${message}`, 10000);
     }

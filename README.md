@@ -10,7 +10,7 @@ Wechat Reading syncs data from WeChat Reading, a Chinese reading app, so this pl
 
 ## 🌿 简介
 
-Wechat Reading 是一款面向中文用户的阅读笔记整理插件。它可以把你的微信读书书架、划线、想法、书评、阅读进度和阅读统计同步为本地 Markdown 文件，并尽量保留你在笔记里手写的总结与感悟。
+微信读书笔记同步是一款面向中文用户的阅读笔记整理插件。它可以把你的微信读书书架、划线、想法、书评、阅读进度和阅读统计同步为本地 Markdown 文件，并尽量保留你在笔记里手写的总结与感悟。
 
 ## ✨ 主要功能
 
@@ -44,7 +44,7 @@ Wechat Reading
 
 4. 把 `main.js` 和 `manifest.json` 放入该目录。
 5. 重启应用。
-6. 在“设置 → 第三方插件”中启用 `Wechat Reading`。
+6. 在“设置 → 第三方插件”中启用 `微信读书笔记同步`。
 
 ## 🔑 获取微信读书 API Key
 
@@ -64,7 +64,7 @@ API Key 可以在微信读书 App 内获取：
 进入：
 
 ```text
-设置 → 第三方插件 → Wechat Reading
+设置 → 第三方插件 → 微信读书笔记同步
 ```
 
 推荐第一次使用时按这个顺序配置：
