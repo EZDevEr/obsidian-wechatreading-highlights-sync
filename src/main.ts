@@ -151,7 +151,7 @@ export default class WeChatReadingHighlightsSyncPlugin extends Plugin {
       new Notice("微信读书：连接测试成功。");
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error("[微信读书笔记同步] 连接测试失败", error);
+      console.error("[Wechat Reading] 连接测试失败", error);
       new Notice(`微信读书：连接测试失败，${message}`);
     }
   }
@@ -167,7 +167,7 @@ class WeChatReadingSettingTab extends PluginSettingTab {
     containerEl.empty();
 
     new Setting(containerEl)
-      .setName("微信读书笔记同步")
+      .setName("Wechat Reading")
       .setDesc("插件只在本地运行，API Key 会保存在当前 Obsidian 插件配置中，不会上传到任何第三方服务。建议不要把包含 API Key 的配置文件同步到公开仓库。")
       .setHeading();
 

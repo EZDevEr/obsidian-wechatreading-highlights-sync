@@ -1,7 +1,7 @@
 {
   "id": "wechatreading-highlights",
-  "name": "WeChat Reading Highlights Sync",
-  "version": "0.1.3",
+  "name": "Wechat Reading",
+  "version": "0.1.4",
   "minAppVersion": "1.13.0",
   "description": "Sync WeChat Reading shelf, highlights, notes, and reading stats to Markdown notes. 将微信读书书架、划线、想法和阅读统计同步为 Markdown 笔记.",
   "author": "EricZheng",

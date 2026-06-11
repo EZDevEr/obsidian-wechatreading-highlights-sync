@@ -1,4 +1,4 @@
-export const PLUGIN_NAME = "微信读书笔记同步";
+export const PLUGIN_NAME = "Wechat Reading";
 
 export const WECHAT_READING_GATEWAY_URL = "https://i.weread.qq.com/api/agent/gateway";
 

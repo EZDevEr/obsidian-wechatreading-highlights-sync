@@ -1,16 +1,16 @@
-# WeChat Reading Highlights Sync
+# Wechat Reading
 
 [![GitHub](https://img.shields.io/badge/GitHub-EZDevEr%2Fobsidian--wechatreading--highlights--sync-181717?logo=github)](https://github.com/EZDevEr/obsidian-wechatreading-highlights-sync)
 
 Sync your WeChat Reading shelf, highlights, notes, reviews, reading progress, reading time, and reading statistics into local Markdown notes.
 
-WeChat Reading is a Chinese reading app, so this plugin's usage guide is primarily written in Chinese.
+Wechat Reading syncs data from WeChat Reading, a Chinese reading app, so this plugin's usage guide is primarily written in Chinese.
 
 > Privacy first: this plugin runs locally, stores your API Key only in your local plugin settings, and does not collect analytics or upload your notes to third-party services.
 
 ## 🌿 简介
 
-微信读书笔记同步是一款面向中文用户的阅读笔记整理插件。它可以把你的微信读书书架、划线、想法、书评、阅读进度和阅读统计同步为本地 Markdown 文件，并尽量保留你在笔记里手写的总结与感悟。
+Wechat Reading 是一款面向中文用户的阅读笔记整理插件。它可以把你的微信读书书架、划线、想法、书评、阅读进度和阅读统计同步为本地 Markdown 文件，并尽量保留你在笔记里手写的总结与感悟。
 
 ## ✨ 主要功能
 
@@ -29,7 +29,7 @@ WeChat Reading is a Chinese reading app, so this plugin's usage guide is primari
 插件通过审核并收录后，可以在插件市场搜索：
 
 ```text
-WeChat Reading Highlights Sync
+Wechat Reading
 ```
 
 ### 🛠️ 手动安装
@@ -44,7 +44,7 @@ WeChat Reading Highlights Sync
 
 4. 把 `main.js` 和 `manifest.json` 放入该目录。
 5. 重启应用。
-6. 在“设置 → 第三方插件”中启用 `WeChat Reading Highlights Sync`。
+6. 在“设置 → 第三方插件”中启用 `Wechat Reading`。
 
 ## 🔑 获取微信读书 API Key
 
@@ -64,7 +64,7 @@ API Key 可以在微信读书 App 内获取：
 进入：
 
 ```text
-设置 → 第三方插件 → WeChat Reading Highlights Sync
+设置 → 第三方插件 → Wechat Reading
 ```
 
 推荐第一次使用时按这个顺序配置：
