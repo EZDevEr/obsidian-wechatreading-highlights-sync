@@ -28,7 +28,7 @@ export class MarkdownWriter {
     folder: string,
     fileName: string,
     content: string,
-    options: { preserveKeepBlocks: boolean; dryRun: boolean }
+    options: { preserveKeepBlocks: boolean }
   ): Promise<WriteResult> {
     const path = joinVaultPath(folder, fileName);
     await this.ensureFolder(getParentPath(path));
@@ -37,7 +37,7 @@ export class MarkdownWriter {
     const nextContent = options.preserveKeepBlocks && oldContent ? mergeKeepBlocks(content, oldContent) : content;
     const changed = oldContent !== nextContent;
 
-    if (!changed || options.dryRun) {
+    if (!changed) {
       return {
         path,
         changed,
@@ -54,47 +54,48 @@ export class MarkdownWriter {
     return { path, changed: true, created: true };
   }
 
-  async writeBinary(path: string, data: ArrayBuffer, dryRun: boolean): Promise<void> {
+  async writeBinary(path: string, data: ArrayBuffer): Promise<void> {
     const normalized = normalizeVaultPath(path);
     await this.ensureFolder(getParentPath(normalized));
-    if (dryRun) return;
     await this.vault.adapter.writeBinary(normalized, data);
   }
 
-  async clearFolder(folder: string, dryRun: boolean): Promise<number> {
+  async clearFolder(folder: string): Promise<number> {
     const normalized = normalizeVaultPath(folder);
     if (!normalized) return 0;
     const files = this.vault.getFiles()
       .filter((file) => file.path === normalized || file.path.startsWith(`${normalized}/`));
-    if (dryRun) return files.length;
 
-    for (const file of files) {
-      await this.fileManager.trashFile(file);
+    const root = this.vault.getAbstractFileByPath(normalized);
+    if (root instanceof TFolder) {
+      await this.fileManager.trashFile(root);
+      if (await this.vault.adapter.exists(normalized)) {
+        await this.vault.adapter.rmdir(normalized, true);
+      }
+      return files.length;
     }
 
-    const folders = this.vault.getAllLoadedFiles()
-      .filter((item): item is TFolder => item instanceof TFolder && item.path.startsWith(`${normalized}/`))
-      .sort((a, b) => b.path.length - a.path.length);
-    for (const folderItem of folders) {
-      await this.deleteFolderIfEmpty(folderItem);
+    if (await this.vault.adapter.exists(normalized)) {
+      await this.vault.adapter.rmdir(normalized, true);
+      return files.length;
     }
+
     return files.length;
   }
 
-  async deleteFileIfExists(path: string, dryRun: boolean): Promise<boolean> {
+  async deleteFileIfExists(path: string): Promise<boolean> {
     const normalized = normalizeVaultPath(path);
     const file = this.vault.getAbstractFileByPath(normalized);
     if (!(file instanceof TFile)) return false;
-    if (!dryRun) await this.fileManager.trashFile(file);
+    await this.fileManager.trashFile(file);
     return true;
   }
 
-  async deleteFilesInFolderExcept(folder: string, keepPaths: Set<string>, dryRun: boolean): Promise<number> {
+  async deleteFilesInFolderExcept(folder: string, keepPaths: Set<string>): Promise<number> {
     const normalized = normalizeVaultPath(folder);
     if (!normalized) return 0;
     const files = this.vault.getFiles()
       .filter((file) => file.path.startsWith(`${normalized}/`) && !keepPaths.has(file.path));
-    if (dryRun) return files.length;
     for (const file of files) {
       await this.fileManager.trashFile(file);
     }
@@ -106,8 +107,8 @@ export class MarkdownWriter {
   }
 
   private async deleteFolderIfEmpty(folder: TFolder): Promise<void> {
-    const children = folder.children;
-    if (children.length > 0) return;
+    const children = await this.vault.adapter.list(folder.path);
+    if (children.files.length > 0 || children.folders.length > 0) return;
     await this.fileManager.trashFile(folder);
   }
 }

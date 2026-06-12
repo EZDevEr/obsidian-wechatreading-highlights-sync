@@ -10,16 +10,16 @@ Wechat Reading syncs data from WeChat Reading, a Chinese reading app, so this pl
 
 ## 🌿 简介
 
-微信读书笔记同步是一款面向中文用户的阅读笔记整理插件。它可以把你的微信读书书架、划线、想法、书评、阅读进度和阅读统计同步为本地 Markdown 文件，并尽量保留你在笔记里手写的总结与感悟。
+Wechat Reading 是一款面向微信读书用户的阅读笔记整理插件。它可以把你的微信读书书架、划线、想法、书评、阅读进度和阅读统计同步为本地 Markdown 文件，并保留你在笔记里手写的总结与感悟。只需要配置微信读书的API Key，为你一键导入所有在微信读书里的划线和笔记。
 
 ## ✨ 主要功能
 
 - 📚 同步微信读书电子书书架、划线、想法、书评和阅读进度。
 - 📊 生成 `微信读书汇总.md`，按 `阅读中`、`未开始`、`已读完` 分组展示。
-- 📝 为每本书生成独立 Markdown 笔记，并按主分类放入子文件夹。
+- 📝 为每本书生成独立 Markdown 笔记，并按**书籍类别**放入子文件夹。
 - 🖼️ 下载图书封面到本地 `assets/`，在正文中直接预览。
 - 🧷 保留 `%% keep-me %%` 与 `%% /keep-me %%` 之间的用户手写内容。
-- ⚡ 支持增量同步、清空后重新同步、同步日志、模板预览和模板校验。
+- ⚡ 支持增量同步、清空后重新同步、同步日志和模板校验。
 - 🎛️ 支持自定义同步目录、汇总页文件名、书籍文件名模板、单书模板和书摘模板。
 
 ## 📦 安装
@@ -35,16 +35,16 @@ Wechat Reading
 ### 🛠️ 手动安装
 
 1. 打开 [GitHub Releases](https://github.com/EZDevEr/obsidian-wechatreading-highlights-sync/releases)。
-2. 下载最新版本里的 `main.js` 和 `manifest.json`。
+2. 下载最新版本里的 `main.js`、`manifest.json` 和 `styles.css`。
 3. 在你的仓库中创建目录：
 
 ```text
 .obsidian/plugins/wechatreading-highlights/
 ```
 
-4. 把 `main.js` 和 `manifest.json` 放入该目录。
+4. 把 `main.js`、`manifest.json` 和 `styles.css` 放入该目录。
 5. 重启应用。
-6. 在“设置 → 第三方插件”中启用 `微信读书笔记同步`。
+6. 在“设置 → 第三方插件”中启用 `Wechat Reading`。
 
 ## 🔑 获取微信读书 API Key
 
@@ -64,7 +64,7 @@ API Key 可以在微信读书 App 内获取：
 进入：
 
 ```text
-设置 → 第三方插件 → 微信读书笔记同步
+设置 → 第三方插件 → Wechat Reading
 ```
 
 推荐第一次使用时按这个顺序配置：

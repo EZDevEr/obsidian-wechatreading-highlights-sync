@@ -58,7 +58,6 @@ export interface WeChatReadingPluginSettings {
   finishedThreshold: number;
   summarySortMode: SummarySortMode;
   addDefaultTags: boolean;
-  dryRun: boolean;
   writeLogFile: boolean;
   logFileName: string;
   lastAutoSyncAt: number;
@@ -85,7 +84,6 @@ export const DEFAULT_SETTINGS: WeChatReadingPluginSettings = {
   finishedThreshold: 95,
   summarySortMode: "recent",
   addDefaultTags: true,
-  dryRun: false,
   writeLogFile: true,
   logFileName: "微信读书同步日志.md",
   lastAutoSyncAt: 0,

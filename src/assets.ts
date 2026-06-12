@@ -21,7 +21,7 @@ export class AssetManager {
       if (response.status < 200 || response.status >= 300 || !response.arrayBuffer) {
         return undefined;
       }
-      await this.writer.writeBinary(path, response.arrayBuffer, settings.dryRun);
+      await this.writer.writeBinary(path, response.arrayBuffer);
       return path;
     } catch {
       return undefined;

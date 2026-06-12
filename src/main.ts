@@ -1,13 +1,14 @@
-import { addIcon, App, Modal, Notice, Plugin, PluginSettingTab, Setting, TextAreaComponent } from "obsidian";
+import { addIcon, App, Notice, Plugin, PluginSettingTab, Setting, TextAreaComponent } from "obsidian";
 import { DEFAULT_BOOK_TEMPLATE, DEFAULT_HIGHLIGHT_TEMPLATE, DEFAULT_SUMMARY_FILE_NAME, OLD_DEFAULT_SUMMARY_FILE_NAME, PLUGIN_NAME } from "./constants";
 import { DEFAULT_SETTINGS, WeChatReadingPluginSettings } from "./settings";
 import { WeChatReadingSyncService } from "./sync";
 import { renderTemplate } from "./template";
-import { formatDate } from "./utils";
+import { formatDate, isApiKeyProbablyValid } from "./utils";
 
 export default class WeChatReadingHighlightsSyncPlugin extends Plugin {
   settings!: WeChatReadingPluginSettings;
   syncService!: WeChatReadingSyncService;
+  private isResyncing = false;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -49,6 +50,11 @@ export default class WeChatReadingHighlightsSyncPlugin extends Plugin {
       this.settings.bookTemplate = migrateTemplateVariableNames(this.settings.bookTemplate);
       this.settings.highlightTemplate = migrateTemplateVariableNames(this.settings.highlightTemplate);
       this.settings.settingsVersion = 3;
+      shouldSaveSettings = true;
+    }
+    const legacySettings = this.settings as WeChatReadingPluginSettings & { dryRun?: boolean };
+    if ("dryRun" in legacySettings) {
+      delete legacySettings.dryRun;
       shouldSaveSettings = true;
     }
     const migratedTemplate = ensureCoverPreviewInTemplate(this.settings.bookTemplate);
@@ -95,7 +101,7 @@ export default class WeChatReadingHighlightsSyncPlugin extends Plugin {
     this.addCommand({
       id: "resync-all-wechatreading-notes",
       name: "微信读书：清空后重新同步全部笔记",
-      callback: () => void this.syncService.resyncAll()
+      callback: () => this.runResyncAll()
     });
 
     this.addCommand({
@@ -155,6 +161,35 @@ export default class WeChatReadingHighlightsSyncPlugin extends Plugin {
       new Notice(`微信读书：连接测试失败，${message}`);
     }
   }
+
+  runResyncAll(): void {
+    if (this.isResyncing) {
+      new Notice("微信读书：清空后重新同步正在进行中。");
+      return;
+    }
+    const apiKey = this.settings.apiKey.trim();
+    if (!apiKey) {
+      new Notice("微信读书：API Key 为空，未执行清空。请先在设置页填写 API Key。");
+      return;
+    }
+    if (!isApiKeyProbablyValid(apiKey)) {
+      new Notice("微信读书：API Key 格式看起来不正确，未执行清空。");
+      return;
+    }
+
+    this.isResyncing = true;
+    console.info("[微信读书笔记同步] 用户触发清空后重新同步");
+    new Notice("微信读书：开始准备远端数据，成功后会清空本地同步目录并重写。");
+    void this.syncService.resyncAll()
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error("[微信读书笔记同步] 清空后重新同步失败", error);
+        new Notice(`微信读书：清空后重新同步失败，${message}`);
+      })
+      .finally(() => {
+        this.isResyncing = false;
+      });
+  }
 }
 
 class WeChatReadingSettingTab extends PluginSettingTab {
@@ -169,6 +204,10 @@ class WeChatReadingSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("微信读书笔记同步")
       .setDesc("插件只在本地运行，API Key 会保存在当前 Obsidian 插件配置中，不会上传到任何第三方服务。建议不要把包含 API Key 的配置文件同步到公开仓库。")
+      .setHeading();
+
+    new Setting(containerEl)
+      .setName("基础配置")
       .setHeading();
 
     new Setting(containerEl)
@@ -206,6 +245,10 @@ class WeChatReadingSettingTab extends PluginSettingTab {
         .onChange((value) => void this.plugin.updateSettings((settings) => {
           settings.summaryFileName = value.trim() || DEFAULT_SUMMARY_FILE_NAME;
         })));
+
+    new Setting(containerEl)
+      .setName("同步范围")
+      .setHeading();
 
     new Setting(containerEl)
       .setName("自动同步")
@@ -258,24 +301,8 @@ class WeChatReadingSettingTab extends PluginSettingTab {
         })));
 
     new Setting(containerEl)
-      .setName("书籍文件名模板")
-      .setDesc("支持 {{title}}、{{author}}、{{bookId}} 等变量；默认使用书名，重名时自动追加作者或 bookId。")
-      .addText((text) => text
-        .setPlaceholder("{{title}}")
-        .setValue(this.plugin.settings.bookFileNameTemplate)
-        .onChange((value) => void this.plugin.updateSettings((settings) => {
-          settings.bookFileNameTemplate = value.trim() || "{{title}}";
-        })));
-
-    new Setting(containerEl)
-      .setName("日期格式")
-      .setDesc("支持 YYYY、MM、DD、HH、mm、ss。")
-      .addText((text) => text
-        .setPlaceholder("YYYY-MM-DD HH:mm")
-        .setValue(this.plugin.settings.dateFormat)
-        .onChange((value) => void this.plugin.updateSettings((settings) => {
-          settings.dateFormat = value.trim() || "YYYY-MM-DD HH:mm";
-        })));
+      .setName("阅读状态")
+      .setHeading();
 
     new Setting(containerEl)
       .setName("未开始阈值")
@@ -314,6 +341,30 @@ class WeChatReadingSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
+      .setName("高级设置")
+      .setHeading();
+
+    new Setting(containerEl)
+      .setName("书籍文件名模板")
+      .setDesc("支持 {{title}}、{{author}}、{{bookId}} 等变量；默认使用书名，重名时自动追加作者或 bookId。")
+      .addText((text) => text
+        .setPlaceholder("{{title}}")
+        .setValue(this.plugin.settings.bookFileNameTemplate)
+        .onChange((value) => void this.plugin.updateSettings((settings) => {
+          settings.bookFileNameTemplate = value.trim() || "{{title}}";
+        })));
+
+    new Setting(containerEl)
+      .setName("日期格式")
+      .setDesc("支持 YYYY、MM、DD、HH、mm、ss。")
+      .addText((text) => text
+        .setPlaceholder("YYYY-MM-DD HH:mm")
+        .setValue(this.plugin.settings.dateFormat)
+        .onChange((value) => void this.plugin.updateSettings((settings) => {
+          settings.dateFormat = value.trim() || "YYYY-MM-DD HH:mm";
+        })));
+
+    new Setting(containerEl)
       .setName("汇总页排序")
       .setDesc("控制汇总页中阅读状态表格的排序方式。")
       .addDropdown((dropdown) => dropdown
@@ -333,15 +384,6 @@ class WeChatReadingSettingTab extends PluginSettingTab {
         .setValue(this.plugin.settings.addDefaultTags)
         .onChange((value) => void this.plugin.updateSettings((settings) => {
           settings.addDefaultTags = value;
-        })));
-
-    new Setting(containerEl)
-      .setName("预览模式")
-      .setDesc("开启后会执行接口请求和模板渲染，但不会写入 Markdown 文件，适合调试。")
-      .addToggle((toggle) => toggle
-        .setValue(this.plugin.settings.dryRun)
-        .onChange((value) => void this.plugin.updateSettings((settings) => {
-          settings.dryRun = value;
         })));
 
     new Setting(containerEl)
@@ -368,13 +410,12 @@ class WeChatReadingSettingTab extends PluginSettingTab {
       .setDesc("支持变量：{{title}}、{{author}}、{{bookId}}、{{category}}、{{cover}}、{{coverUrl}}、{{progress}}、{{highlightCount}}、{{noteCount}}、{{syncTime}}、{{lastReadTime}}、{{wechatReadingUrl}}、{{highlights}}、{{index}}、{{index0}}。索引支持 {{index + 1}}、{{index - 1}} 这类简单加减法。")
       .setHeading();
 
+    const templateDetails = containerEl.createEl("details", { cls: "wechatreading-settings-details" });
+    templateDetails.createEl("summary", { text: "高级模板设置" });
+    const templateContainer = templateDetails.createDiv({ cls: "wechatreading-settings-details-content" });
     let templateTextArea: TextAreaComponent | null = null;
     let highlightTemplateTextArea: TextAreaComponent | null = null;
-    const previewEl = containerEl.createEl("pre", {
-      cls: "wechatreading-template-preview",
-      text: "点击“校验并预览模板”后会在这里显示示例结果。"
-    });
-    new Setting(containerEl)
+    new Setting(templateContainer)
       .setName("默认模板编辑区")
       .setDesc("修改后会影响后续同步生成的单本书笔记。")
       .addTextArea((textArea) => {
@@ -388,7 +429,7 @@ class WeChatReadingSettingTab extends PluginSettingTab {
         textArea.inputEl.cols = 80;
       });
 
-    new Setting(containerEl)
+    new Setting(templateContainer)
       .setName("书摘与想法条目模板")
       .setDesc("控制 {{highlights}} 中每一条书摘的渲染方式。支持 {{index}}、{{index0}}、{{highlightText}}、{{note}}、{{chapter}}、{{createTime}}、{{wechatReadingUrl}}。")
       .addTextArea((textArea) => {
@@ -402,29 +443,28 @@ class WeChatReadingSettingTab extends PluginSettingTab {
         textArea.inputEl.cols = 80;
       });
 
-    new Setting(containerEl)
-      .setName("校验并预览模板")
-      .setDesc("使用示例数据渲染当前模板，帮助检查变量和简单表达式。")
+    new Setting(templateContainer)
+      .setName("校验模板")
+      .setDesc("检查书籍模板、书摘模板和文件名模板里的变量与简单表达式是否可正常解析。")
       .addButton((button) => button
-        .setButtonText("校验并预览模板")
+        .setButtonText("校验模板")
         .onClick(() => {
           try {
-            const previewContext = createTemplatePreviewContext(this.plugin.settings);
-            const highlightPreview = renderTemplate(this.plugin.settings.highlightTemplate, previewContext);
-            const preview = renderTemplate(this.plugin.settings.bookTemplate, {
-              ...previewContext,
-              highlights: highlightPreview
+            const validationContext = createTemplateValidationContext(this.plugin.settings);
+            const renderedHighlights = renderTemplate(this.plugin.settings.highlightTemplate, validationContext);
+            renderTemplate(this.plugin.settings.bookTemplate, {
+              ...validationContext,
+              highlights: renderedHighlights
             });
-            previewEl.setText(preview.slice(0, 4000));
+            renderTemplate(this.plugin.settings.bookFileNameTemplate || "{{title}}", validationContext);
             new Notice("微信读书：模板校验通过。");
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
-            previewEl.setText(`模板错误：${message}`);
             new Notice(`微信读书：模板错误，${message}`);
           }
         }));
 
-    new Setting(containerEl)
+    new Setting(templateContainer)
       .setName("恢复默认模板")
       .setDesc("会覆盖上方两个模板编辑区，但不会修改已经生成的 Markdown 文件。")
       .addButton((button) => button
@@ -459,16 +499,6 @@ class WeChatReadingSettingTab extends PluginSettingTab {
         .onClick(() => void this.plugin.syncService.regenerateSummary()));
 
     new Setting(containerEl)
-      .setName("清空后重新同步")
-      .setDesc("会删除同步目录下之前生成的汇总页、书籍笔记和 assets，然后从微信读书重新同步。请确认手写内容已经另行备份。")
-      .addButton((button) => button
-        .setButtonText("清空后重新同步")
-        .setDestructive()
-        .onClick(() => {
-          new ConfirmResyncModal(this.app, () => void this.plugin.syncService.resyncAll()).open();
-        }));
-
-    new Setting(containerEl)
       .setName("最近同步结果")
       .setHeading();
     const result = this.plugin.settings.lastSyncResult;
@@ -481,6 +511,20 @@ class WeChatReadingSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("同步日志")
       .setHeading();
+    new Setting(containerEl)
+      .setName("清空同步日志")
+      .setDesc("只清空设置页里的最近日志记录，不删除已经写入仓库的日志文件。")
+      .addButton((button) => button
+        .setButtonText("清空日志")
+        .setDisabled(this.plugin.settings.syncLogs.length === 0)
+        .onClick(() => {
+          void this.plugin.updateSettings((settings) => {
+            settings.syncLogs = [];
+          }).then(() => {
+            new Notice("微信读书：已清空设置页同步日志。");
+            this.display();
+          });
+        }));
     const logContainer = containerEl.createDiv({ cls: "wechatreading-sync-log" });
     const logs = this.plugin.settings.syncLogs.slice(0, 20);
     if (logs.length === 0) {
@@ -492,38 +536,34 @@ class WeChatReadingSettingTab extends PluginSettingTab {
         });
       }
     }
-  }
-}
 
-class ConfirmResyncModal extends Modal {
-  constructor(app: App, private readonly onConfirm: () => void) {
-    super(app);
-  }
-
-  onOpen(): void {
-    const { contentEl } = this;
-    contentEl.empty();
-    new Setting(contentEl)
-      .setName("确认清空后重新同步")
-      .setDesc("这会删除同步目录下已有的微信读书汇总页、书籍笔记和 assets，然后从微信读书重新同步。请确认手写内容已经另行备份。")
+    new Setting(containerEl)
+      .setName("危险操作")
       .setHeading();
-
-    new Setting(contentEl)
-      .addButton((button) => button
-        .setButtonText("取消")
-        .onClick(() => this.close()))
-      .addButton((button) => button
-        .setButtonText("清空后重新同步")
-        .setDestructive()
-        .setCta()
-        .onClick(() => {
-          this.close();
-          this.onConfirm();
-        }));
-  }
-
-  onClose(): void {
-    this.contentEl.empty();
+    const resyncSetting = new Setting(containerEl)
+      .setName("清空后重新同步")
+      .setDesc("会删除整个同步目录，包括汇总页、书籍笔记、assets 和 keep-me 手写区域，然后从微信读书重新拉取数据。请确认重要内容已经备份。");
+    resyncSetting.controlEl.empty();
+    const resyncButton = resyncSetting.controlEl.createEl("button", {
+      cls: "wechatreading-danger-button",
+      text: "清空后重新同步"
+    });
+    resyncButton.type = "button";
+    resyncButton.setAttr("aria-label", "清空后重新同步微信读书笔记");
+    resyncButton.style.setProperty("background-color", "#c73741", "important");
+    resyncButton.style.setProperty("border-color", "#c73741", "important");
+    resyncButton.style.setProperty("color", "#ffffff", "important");
+    let lastTriggeredAt = 0;
+    const triggerResync = (event: Event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const now = Date.now();
+      if (now - lastTriggeredAt < 800) return;
+      lastTriggeredAt = now;
+      this.plugin.runResyncAll();
+    };
+    this.plugin.registerDomEvent(resyncButton, "mousedown", triggerResync);
+    this.plugin.registerDomEvent(resyncButton, "click", triggerResync);
   }
 }
 
@@ -533,7 +573,7 @@ function normalizePercentSetting(value: string, fallback: number): number {
   return Math.max(0, Math.min(100, Math.round(parsed)));
 }
 
-function createTemplatePreviewContext(settings: WeChatReadingPluginSettings): Record<string, string | number> {
+function createTemplateValidationContext(settings: WeChatReadingPluginSettings): Record<string, string | number> {
   return {
     title: "示例书名",
     author: "示例作者",

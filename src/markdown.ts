@@ -164,15 +164,16 @@ function buildBookContext(
 
 function renderBookSummaryRow(data: BookSyncData, fileNames: Map<string, string>, settings: WeChatReadingPluginSettings): string {
   const title = getBookTitle(data.book);
+  const summaryTitle = stripParentheses(title) || title;
   const progress = getBookProgress(data);
   return [
-    renderBookLink(data.book, fileNames, title),
-    markdownTableCell(data.book.author || "未知作者"),
-    nowrapTableCell(getMainCategory(data.book.category)),
-    nowrapTableCell(getSubCategory(data.book.category) || "未分类"),
-    nowrapTableCell(formatReadingStatus(progress, settings.unreadThreshold, settings.finishedThreshold)),
-    markdownTableCell(getHighlightCount(data)),
-    markdownTableCell(getNoteCount(data))
+    renderWrappedBookLinks(data.book, fileNames, summaryTitle, 10),
+    renderAuthorCell(data.book.author || "未知作者"),
+    nowrapMarkdownTableCell(getMainCategory(data.book.category)),
+    nowrapMarkdownTableCell(getSubCategory(data.book.category) || "未分类"),
+    nowrapMarkdownTableCell(formatReadingStatus(progress, settings.unreadThreshold, settings.finishedThreshold)),
+    nowrapMarkdownTableCell(getHighlightCount(data)),
+    nowrapMarkdownTableCell(getNoteCount(data))
   ].join(" | ").replace(/^/, "| ").replace(/$/, " |");
 }
 
@@ -180,6 +181,19 @@ function renderBookLink(book: { bookId: string; title?: string }, fileNames: Map
   const title = book.title || `未命名书籍 ${book.bookId}`;
   const fileName = fileNames.get(book.bookId)?.replace(/\.md$/i, "") || sanitizeFileName(title);
   return `[[${fileName.replace(/\|/g, "\\|")}\\|${(label || title).replace(/\|/g, "\\|")}]]`;
+}
+
+function renderWrappedBookLinks(book: { bookId: string; title?: string }, fileNames: Map<string, string>, title: string, size: number): string {
+  const fileName = getBookFileLinkPath(book, fileNames);
+  return splitEvery(title, size)
+    .map((part) => blockInternalLink(fileName, part))
+    .join("");
+}
+
+function renderAuthorCell(author: string): string {
+  return splitAuthors(author)
+    .map((part) => blockMarkdownTableCell(part))
+    .join("");
 }
 
 function renderBookStatusSection(title: string, books: BookSyncData[], fileNames: Map<string, string>, settings: WeChatReadingPluginSettings): string {
@@ -201,12 +215,68 @@ function nowrapTableCell(value: string | number): string {
   return `<span style="white-space: nowrap;">${escapeHtml(String(value))}</span>`;
 }
 
+function nowrapMarkdownTableCell(value: string | number): string {
+  return nowrapTableCell(markdownTableCell(value)).replace(/&lt;br&gt;/g, "<br>");
+}
+
+function blockTableCell(value: string | number): string {
+  return `<span style="display: block; white-space: nowrap;">${escapeHtml(String(value))}</span>`;
+}
+
+function blockMarkdownTableCell(value: string | number): string {
+  return blockTableCell(markdownTableCell(value)).replace(/&lt;br&gt;/g, "<br>");
+}
+
+function splitEvery(value: string, size: number): string[] {
+  const chars = Array.from(value);
+  const chunks: string[] = [];
+  for (let index = 0; index < chars.length; index += size) {
+    chunks.push(chars.slice(index, index + size).join(""));
+  }
+  return chunks.length > 0 ? chunks : [value];
+}
+
+function getBookFileLinkPath(book: { bookId: string; title?: string }, fileNames: Map<string, string>): string {
+  const title = book.title || `未命名书籍 ${book.bookId}`;
+  return fileNames.get(book.bookId)?.replace(/\.md$/i, "") || sanitizeFileName(title);
+}
+
+function blockInternalLink(path: string, label: string): string {
+  const escapedPath = escapeHtmlTableValue(path);
+  const escapedLabel = escapeHtmlTableValue(label);
+  return `<a data-href="${escapedPath}" href="${escapedPath}" class="internal-link" style="display: block; white-space: nowrap;">${escapedLabel}</a>`;
+}
+
+function stripParentheses(value: string): string {
+  return value
+    .replace(/（[^（）]*）/g, "")
+    .replace(/\([^()]*\)/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function splitAuthors(author: string): string[] {
+  const normalized = author
+    .trim()
+    .replace(/\s+(?=\[[^\]]+\])/g, "\n")
+    .replace(/\s*(?:、|，|,|;|；|\/|&|\band\b|\s+和\s+)\s*/gi, "\n")
+    .replace(/([\p{Script=Han}）\]])\s+(?=[\p{Script=Han}\[])/gu, "$1\n")
+    .replace(/\s{2,}/g, "\n")
+    .replace(/\s*\n+\s*/g, "\n");
+  const authors = normalized.split("\n").map((item) => item.trim()).filter(Boolean);
+  return authors.length > 0 ? authors : ["未知作者"];
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function escapeHtmlTableValue(value: string): string {
+  return escapeHtml(value).replace(/\|/g, "&#124;");
 }
 
 function groupBooksByReadingStatus(books: BookSyncData[], settings: WeChatReadingPluginSettings): { reading: BookSyncData[]; unread: BookSyncData[]; finished: BookSyncData[] } {

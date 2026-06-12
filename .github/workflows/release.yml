@@ -44,6 +44,11 @@ jobs:
         with:
           subject-path: manifest.json
 
+      - name: Attest styles.css
+        uses: actions/attest@v4
+        with:
+          subject-path: styles.css
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
         with:
@@ -51,3 +56,4 @@ jobs:
           files: |
             main.js
             manifest.json
+            styles.css

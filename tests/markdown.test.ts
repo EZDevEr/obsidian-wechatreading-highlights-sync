@@ -15,11 +15,24 @@ describe("汇总页渲染", () => {
         {
           book: {
             bookId: "1",
-            title: "示例书",
-            author: "作者",
+            title: "示例书标题（典藏版）超过十个字啦",
+            author: "[美]作者一 [英]作者二",
             category: "计算机-数据库"
           },
           progress: { book: { progress: 25 } },
+          bookmarks: [],
+          reviews: [],
+          chapters: [],
+          notes: []
+        },
+        {
+          book: {
+            bookId: "2",
+            title: "空格作者示例",
+            author: "作者甲 作者乙",
+            category: "计算机-数据库"
+          },
+          progress: { book: { progress: 30 } },
           bookmarks: [],
           reviews: [],
           chapters: [],
@@ -32,8 +45,9 @@ describe("汇总页渲染", () => {
     expect(output).toContain("## 未开始");
     expect(output).toContain("## 已读完");
     expect(output).toContain("| 书名 | 作者 | 主分类 | 子分类 | 进度 | 划线 | 想法 |");
-    expect(output).toContain("| [[计算机/示例书\\|示例书]] | 作者 | <span style=\"white-space: nowrap;\">计算机</span> | <span style=\"white-space: nowrap;\">数据库</span> | <span style=\"white-space: nowrap;\">阅读中（25%）</span> | 0 | 0 |");
-    expect(output).toContain("[[计算机/示例书\\|示例书]]");
+    expect(output).toContain("| <a data-href=\"计算机/示例书标题（典藏版）超过十个字啦\" href=\"计算机/示例书标题（典藏版）超过十个字啦\" class=\"internal-link\" style=\"display: block; white-space: nowrap;\">示例书标题超过十个字</a><a data-href=\"计算机/示例书标题（典藏版）超过十个字啦\" href=\"计算机/示例书标题（典藏版）超过十个字啦\" class=\"internal-link\" style=\"display: block; white-space: nowrap;\">啦</a> | <span style=\"display: block; white-space: nowrap;\">[美]作者一</span><span style=\"display: block; white-space: nowrap;\">[英]作者二</span> | <span style=\"white-space: nowrap;\">计算机</span> | <span style=\"white-space: nowrap;\">数据库</span> | <span style=\"white-space: nowrap;\">阅读中（25%）</span> | <span style=\"white-space: nowrap;\">0</span> | <span style=\"white-space: nowrap;\">0</span> |");
+    expect(output).toContain("<span style=\"display: block; white-space: nowrap;\">作者甲</span><span style=\"display: block; white-space: nowrap;\">作者乙</span>");
+    expect(output).not.toContain("典藏版</a>");
   });
 });
 

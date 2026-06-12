@@ -1,0 +1,27 @@
+.wechatreading-danger-button {
+  background-color: #c73741 !important;
+  border-color: #c73741 !important;
+  color: #ffffff !important;
+}
+
+.wechatreading-danger-button:hover,
+.wechatreading-danger-button:focus {
+  background-color: #a92d36 !important;
+  border-color: #a92d36 !important;
+  color: #ffffff !important;
+}
+
+.wechatreading-settings-details {
+  border-top: 1px solid var(--background-modifier-border);
+  padding: 12px 0;
+}
+
+.wechatreading-settings-details summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.wechatreading-settings-details-content {
+  padding-top: 8px;
+}

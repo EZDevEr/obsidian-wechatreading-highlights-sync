@@ -24,6 +24,7 @@ export interface SyncOptions {
 export class WeChatReadingSyncService {
   private readonly writer: MarkdownWriter;
   private readonly assets: AssetManager;
+  private isSyncing = false;
 
   constructor(
     private readonly vault: Vault,
@@ -42,6 +43,28 @@ export class WeChatReadingSyncService {
   }
 
   async syncAll(options: SyncOptions = {}): Promise<void> {
+    if (this.isSyncing) {
+      if (!options.silent) {
+        new Notice("微信读书：已有同步任务正在进行，请稍后再试。");
+      }
+      return;
+    }
+
+    this.isSyncing = true;
+    try {
+      await this.runSyncAll(options);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("[微信读书笔记同步] 同步启动失败", error);
+      if (!options.silent) {
+        new Notice(`微信读书：同步失败，${message}`);
+      }
+    } finally {
+      this.isSyncing = false;
+    }
+  }
+
+  private async runSyncAll(options: SyncOptions = {}): Promise<void> {
     const settings = this.getSettings();
     this.assertApiKey(settings);
 
@@ -56,14 +79,6 @@ export class WeChatReadingSyncService {
     this.updateProgress(progressNotice, "微信读书：开始读取书架和统计。");
 
     try {
-      if (options.clearBeforeSync) {
-        const deleted = await this.writer.clearFolder(settings.syncFolder, settings.dryRun);
-        await this.callbacks.updateSettings((current) => {
-          current.syncCache = {};
-        });
-        this.log("info", settings.dryRun ? `预览模式：将清理 ${deleted} 个已同步文件。` : `已清理 ${deleted} 个旧同步文件。`);
-      }
-
       const [shelf, notebooks, stats] = await Promise.all([
         client.getShelf(),
         client.getAllNotebooks(),
@@ -78,8 +93,21 @@ export class WeChatReadingSyncService {
       for (const [index, book] of candidateBooks.entries()) {
         this.updateProgress(progressNotice, `微信读书：同步 ${index + 1}/${candidateBooks.length}《${book.title || book.bookId}》`);
         try {
-          const preloadedProgress = await client.getProgress(book.bookId);
-          if (settings.onlySyncStartedBooks && (normalizeProgress(preloadedProgress.book?.progress) ?? 0) <= 0) {
+          let preloadedProgress: ProgressResponse | null | undefined;
+          try {
+            preloadedProgress = await client.getProgress(book.bookId);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            if (settings.onlySyncStartedBooks) {
+              failedBooks += 1;
+              this.log("error", `读取《${book.title}》阅读进度失败，无法判断是否已开始，已跳过：${message}`);
+              continue;
+            }
+            preloadedProgress = null;
+            this.log("warn", `读取《${book.title}》阅读进度失败，将继续同步划线和想法：${message}`);
+          }
+
+          if (settings.onlySyncStartedBooks && (normalizeProgress(preloadedProgress?.book?.progress) ?? 0) <= 0) {
             skippedByProgress += 1;
             continue;
           }
@@ -95,7 +123,7 @@ export class WeChatReadingSyncService {
           }
 
           const data = await this.loadBookData(client, book, notebook, preloadedProgress);
-          data.coverPath = await this.assets.downloadCover(book, settings) || cached?.coverPath;
+          data.coverPath = options.clearBeforeSync ? undefined : cached?.coverPath;
           bookData.push(data);
         } catch (error) {
           failedBooks += 1;
@@ -115,15 +143,33 @@ export class WeChatReadingSyncService {
       let changedBooks = 0;
       let createdBooks = 0;
 
+      if (options.clearBeforeSync && failedBooks > 0) {
+        throw new WeChatReadingApiError(`有 ${failedBooks} 本书数据拉取失败，未清空本地同步目录。请稍后重试。`);
+      }
+
+      if (options.clearBeforeSync) {
+        this.updateProgress(progressNotice, "微信读书：远端数据准备完成，开始清空本地同步目录。");
+        const deleted = await this.writer.clearFolder(settings.syncFolder);
+        console.info("[微信读书笔记同步] 清空同步目录", {
+          syncFolder: settings.syncFolder,
+          deleted
+        });
+        await this.callbacks.updateSettings((current) => {
+          current.syncCache = {};
+        });
+        this.updateProgress(progressNotice, "微信读书：已清空同步目录，开始重新写入笔记。");
+        this.log("info", `已清理 ${deleted} 个旧同步文件。`);
+      }
+
       if (!options.summaryOnly) {
         for (const [index, data] of bookData.entries()) {
           if (data.skippedByCache) continue;
           this.updateProgress(progressNotice, `微信读书：写入 ${index + 1}/${bookData.length}《${data.book.title || data.book.bookId}》`);
           const fileName = fileNames.get(data.book.bookId) ?? `${sanitizeFileName(data.book.title)}.md`;
+          data.coverPath = await this.assets.downloadCover(data.book, settings) || data.coverPath;
           const content = renderBookNote(data, settings, syncTime);
           const result = await this.writer.writeMarkdown(settings.syncFolder, fileName, content, {
-            preserveKeepBlocks: settings.preserveKeepBlocks,
-            dryRun: settings.dryRun
+            preserveKeepBlocks: settings.preserveKeepBlocks
           });
           if (result.changed) changedBooks += 1;
           if (result.created) createdBooks += 1;
@@ -133,7 +179,7 @@ export class WeChatReadingSyncService {
 
       const summaryFileName = settings.summaryFileName || DEFAULT_SUMMARY_FILE_NAME;
       if (summaryFileName !== OLD_DEFAULT_SUMMARY_FILE_NAME) {
-        await this.writer.deleteFileIfExists(joinVaultPath(settings.syncFolder, OLD_DEFAULT_SUMMARY_FILE_NAME), settings.dryRun);
+        await this.writer.deleteFileIfExists(joinVaultPath(settings.syncFolder, OLD_DEFAULT_SUMMARY_FILE_NAME));
       }
 
       const summaryContent = renderSummary(context, settings, fileNames);
@@ -142,12 +188,12 @@ export class WeChatReadingSyncService {
         settings.syncFolder,
         summaryFileName,
         summaryContent,
-        { preserveKeepBlocks: false, dryRun: settings.dryRun }
+        { preserveKeepBlocks: false }
       );
       const cleanedCovers = await this.cleanupUnusedCovers(settings);
 
       const summary = [
-        settings.dryRun ? "预览模式，未写入文件" : `更新 ${changedBooks} 本，新增 ${createdBooks} 本`,
+        `更新 ${changedBooks} 本，新增 ${createdBooks} 本`,
         skippedByCache > 0 ? `缓存跳过 ${skippedByCache} 本` : "缓存跳过 0 本",
         skippedByProgress > 0 ? `未开始跳过 ${skippedByProgress} 本` : "未开始跳过 0 本",
         cleanedCovers > 0 ? `清理封面 ${cleanedCovers} 个` : "清理封面 0 个",
@@ -176,7 +222,7 @@ export class WeChatReadingSyncService {
         summary: message,
         syncedBooks: 0,
         skippedBooks: 0,
-        failedBooks: 0
+        failedBooks
       });
       console.error("[微信读书笔记同步] 同步失败", error);
       await this.writeLogFile(settings);
@@ -246,9 +292,9 @@ export class WeChatReadingSyncService {
     return books;
   }
 
-  private async loadBookData(client: WeChatReadingApiClient, book: WeChatReadingBook, notebook?: NotebookBook, preloadedProgress?: ProgressResponse): Promise<BookSyncData> {
+  private async loadBookData(client: WeChatReadingApiClient, book: WeChatReadingBook, notebook?: NotebookBook, preloadedProgress?: ProgressResponse | null): Promise<BookSyncData> {
     const [progressResult, bookmarkResult, reviewsResult] = await Promise.allSettled([
-      preloadedProgress ? Promise.resolve(preloadedProgress) : client.getProgress(book.bookId),
+      preloadedProgress === null ? Promise.resolve(undefined) : preloadedProgress ? Promise.resolve(preloadedProgress) : client.getProgress(book.bookId),
       client.getBookmarks(book.bookId),
       client.getAllMineReviews(book.bookId)
     ]);
@@ -281,10 +327,10 @@ export class WeChatReadingSyncService {
     return data;
   }
 
-  private createCachedBookData(book: WeChatReadingBook, notebook: NotebookBook | undefined, progress: ProgressResponse, cached: BookSyncCacheEntry): BookSyncData {
+  private createCachedBookData(book: WeChatReadingBook, notebook: NotebookBook | undefined, progress: ProgressResponse | null | undefined, cached: BookSyncCacheEntry): BookSyncData {
     return {
       book,
-      progress,
+      progress: progress ?? undefined,
       bookmarks: [],
       reviews: [],
       chapters: [],
@@ -297,7 +343,7 @@ export class WeChatReadingSyncService {
     };
   }
 
-  private buildFingerprint(book: WeChatReadingBook, notebook: NotebookBook | undefined, progress: ProgressResponse, settings: WeChatReadingPluginSettings): string {
+  private buildFingerprint(book: WeChatReadingBook, notebook: NotebookBook | undefined, progress: ProgressResponse | null | undefined, settings: WeChatReadingPluginSettings): string {
     return JSON.stringify({
       bookId: book.bookId,
       updateTime: book.updateTime ?? 0,
@@ -310,8 +356,8 @@ export class WeChatReadingSyncService {
       reviewCount: notebook?.reviewCount ?? 0,
       bookmarkCount: notebook?.bookmarkCount ?? 0,
       sort: notebook?.sort ?? 0,
-      progress: normalizeProgress(progress.book?.progress) ?? notebook?.readingProgress ?? 0,
-      progressUpdateTime: progress.book?.updateTime ?? 0,
+      progress: normalizeProgress(progress?.book?.progress) ?? notebook?.readingProgress ?? 0,
+      progressUpdateTime: progress?.book?.updateTime ?? 0,
       bookTemplate: settings.bookTemplate,
       highlightTemplate: settings.highlightTemplate,
       bookFileNameTemplate: settings.bookFileNameTemplate,
@@ -356,7 +402,7 @@ export class WeChatReadingSyncService {
         .map((entry) => entry.coverPath)
         .filter((path): path is string => Boolean(path))
     );
-    return this.writer.deleteFilesInFolderExcept(joinVaultPath(settings.syncFolder, "assets"), keepPaths, settings.dryRun);
+    return this.writer.deleteFilesInFolderExcept(joinVaultPath(settings.syncFolder, "assets"), keepPaths);
   }
 
   private async readBookIdFromFile(file: TFile): Promise<string | null> {
@@ -409,8 +455,7 @@ export class WeChatReadingSyncService {
       ""
     ].join("\n");
     await this.writer.writeMarkdown(settings.syncFolder, settings.logFileName || "微信读书同步日志.md", content, {
-      preserveKeepBlocks: false,
-      dryRun: settings.dryRun
+      preserveKeepBlocks: false
     });
   }
 }
