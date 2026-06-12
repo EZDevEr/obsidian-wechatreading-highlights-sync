@@ -258,9 +258,9 @@ function stripParentheses(value: string): string {
 function splitAuthors(author: string): string[] {
   const normalized = author
     .trim()
-    .replace(/\s+(?=\[[^\]]+\])/g, "\n")
+    .replace(/\s+(?=\x5B[^]]+])/g, "\n")
     .replace(/\s*(?:、|，|,|;|；|\/|&|\band\b|\s+和\s+)\s*/gi, "\n")
-    .replace(/([\p{Script=Han}）\]])\s+(?=[\p{Script=Han}\[])/gu, "$1\n")
+    .replace(/([\p{Script=Han}）\]])\s+(?=(?:[\p{Script=Han}]|\x5B))/gu, "$1\n")
     .replace(/\s{2,}/g, "\n")
     .replace(/\s*\n+\s*/g, "\n");
   const authors = normalized.split("\n").map((item) => item.trim()).filter(Boolean);

@@ -511,6 +511,7 @@ class WeChatReadingSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("同步日志")
       .setHeading();
+    let logContainer: HTMLElement | null = null;
     new Setting(containerEl)
       .setName("清空同步日志")
       .setDesc("只清空设置页里的最近日志记录，不删除已经写入仓库的日志文件。")
@@ -522,10 +523,12 @@ class WeChatReadingSettingTab extends PluginSettingTab {
             settings.syncLogs = [];
           }).then(() => {
             new Notice("微信读书：已清空设置页同步日志。");
-            this.display();
+            button.setDisabled(true);
+            logContainer?.empty();
+            logContainer?.createEl("p", { text: "暂无日志。" });
           });
         }));
-    const logContainer = containerEl.createDiv({ cls: "wechatreading-sync-log" });
+    logContainer = containerEl.createDiv({ cls: "wechatreading-sync-log" });
     const logs = this.plugin.settings.syncLogs.slice(0, 20);
     if (logs.length === 0) {
       logContainer.createEl("p", { text: "暂无日志。" });
@@ -550,9 +553,6 @@ class WeChatReadingSettingTab extends PluginSettingTab {
     });
     resyncButton.type = "button";
     resyncButton.setAttr("aria-label", "清空后重新同步微信读书笔记");
-    resyncButton.style.setProperty("background-color", "#c73741", "important");
-    resyncButton.style.setProperty("border-color", "#c73741", "important");
-    resyncButton.style.setProperty("color", "#ffffff", "important");
     let lastTriggeredAt = 0;
     const triggerResync = (event: Event) => {
       event.preventDefault();
